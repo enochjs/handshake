@@ -1,0 +1,15 @@
+[Unit]
+Description=Reverse SSH tunnel: expose local GitLab via Aliyun handshake
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/handshake
+ExecStart=%h/handshake/hsd.sh tunnel
+Restart=always
+RestartSec=5
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

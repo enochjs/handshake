@@ -1,0 +1,43 @@
+# GitLab CE — 软资源目标：内存 24G / 数据盘约 300G（可超出）
+# 数据与配置位于本目录；启动：docker compose up -d
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: gitlab
+    restart: always
+    hostname: gitlab.local
+    privileged: false
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://10.10.0.216:8929'
+        # 宿主机映射 8929->容器80：强制 nginx 仍监听 80，避免与 Puma 抢端口
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+        # 备份保留 7 天（秒）；配合 ~/gitlab/backup.sh 每日定时任务
+        gitlab_rails['backup_keep_time'] = 604800
+        # 按约 24G 可用内存调优（实际可高于此值）
+        puma['worker_processes'] = 4
+        sidekiq['max_concurrency'] = 20
+        postgresql['shared_buffers'] = "2GB"
+        postgresql['effective_cache_size'] = "8GB"
+        prometheus_monitoring['enable'] = true
+    ports:
+      # 宿主机 80 已被 meta-server 占用，对外用 8929（不占 8080）
+      - "8929:80"
+      - "2222:22"
+    volumes:
+      - ./config:/etc/gitlab
+      - ./logs:/var/log/gitlab
+      - ./data:/var/opt/gitlab
+    shm_size: "256m"
+    # 软限制：预留/目标 24G，不设硬上限，使用时可超过
+    mem_reservation: 24g
+    # 数据目录建议容量约 300G（./data），受宿主机磁盘约束，可超出该目标
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/-/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
