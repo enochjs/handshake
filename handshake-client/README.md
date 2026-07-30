@@ -12,12 +12,15 @@ vim .env
 
 Set `HANDSHAKE_INVITE_TOKEN` to the one-time token from the Aliyun handshake server operator.
 
+The installer also installs the global command `git-hs`, which Git exposes as `git hs`.
+By default, key registration goes through a temporary SSH tunnel from local `127.0.0.1:18787` to the handshake server's `127.0.0.1:8787`, so the registration port does not need to be exposed publicly.
+
 ## First-Time Setup
 
-Ask the Aliyun jump-host operator for an invite token, then run:
+Ask the Aliyun jump-host operator for an invite token, then run `./install.sh`. To rerun setup after the command is installed:
 
 ```bash
-cargo run -- setup --token <invite-token>
+git hs setup --token <invite-token>
 ```
 
 By default, setup:
@@ -31,21 +34,21 @@ By default, setup:
 Useful overrides:
 
 ```bash
-cargo run -- setup \
+git hs setup \
   --token <invite-token> \
   --server-url http://106.14.219.191:8787 \
   --key ~/.ssh/id_ed25519.pub \
   --handshake-user gitproxy
 ```
 
-`HANDSHAKE_KEY_SERVER_URL` can also override the default key-registration server URL.
+`HANDSHAKE_KEY_SERVER_URL` can also override the key-registration URL. Leave `HANDSHAKE_KEY_SERVER_TUNNEL=1` enabled when the URL points at `127.0.0.1:18787`; set it to `0` only if the key-registration service is directly reachable.
 
 ## Prerequisites
 
 After setup, SSH config includes:
 
 ```sshconfig
-Host handshake
+Host handshake-client-jump
     HostName 106.14.219.191
     User gitproxy
     IdentityFile ~/.ssh/id_ed25519
@@ -55,15 +58,15 @@ Host gitlab-via-handshake
     HostName 127.0.0.1
     Port 12222
     User git
-    ProxyJump handshake
+    ProxyJump handshake-client-jump
 ```
 
 ## Run
 
 ```bash
-cargo run -- status
-cargo run -- enable
-cargo run -- disable
+git hs status
+git hs enable
+git hs disable
 ```
 
 ## Add-Key Server

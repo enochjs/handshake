@@ -294,19 +294,19 @@ mod cli_tests {
     #[test]
     fn parses_cli_commands() {
         assert_eq!(
-            parse_command(&args(&["handshake-client"])).unwrap(),
+            parse_command(&args(&["git-hs"])).unwrap(),
             CliCommand::Help
         );
         assert_eq!(
-            parse_command(&args(&["handshake-client", "status"])).unwrap(),
+            parse_command(&args(&["git-hs", "status"])).unwrap(),
             CliCommand::Status
         );
         assert_eq!(
-            parse_command(&args(&["handshake-client", "enable"])).unwrap(),
+            parse_command(&args(&["git-hs", "enable"])).unwrap(),
             CliCommand::Enable
         );
         assert_eq!(
-            parse_command(&args(&["handshake-client", "disable"])).unwrap(),
+            parse_command(&args(&["git-hs", "disable"])).unwrap(),
             CliCommand::Disable
         );
     }
@@ -314,19 +314,19 @@ mod cli_tests {
     #[test]
     fn rejects_unknown_command() {
         assert_eq!(
-            parse_command(&args(&["handshake-client", "wat"])).unwrap_err(),
+            parse_command(&args(&["git-hs", "wat"])).unwrap_err(),
             "未知命令: wat"
         );
     }
 
     #[test]
     fn renders_usage() {
-        let output = usage("handshake-client");
+        let output = usage("git-hs");
 
-        assert!(output.contains("handshake-client status"));
-        assert!(output.contains("handshake-client enable"));
-        assert!(output.contains("handshake-client disable"));
-        assert!(output.contains("handshake-client setup --token"));
+        assert!(output.contains("git-hs status"));
+        assert!(output.contains("git-hs enable"));
+        assert!(output.contains("git-hs disable"));
+        assert!(output.contains("git-hs setup --token"));
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod cli_tests {
             setup_options: None,
         };
 
-        let output = run_cli(&mut app, &args(&["handshake-client", "status"])).unwrap();
+        let output = run_cli(&mut app, &args(&["git-hs", "status"])).unwrap();
 
         assert_eq!(app.calls, vec!["status"]);
         assert!(output.contains("直连"));
@@ -394,8 +394,8 @@ mod cli_tests {
     fn dispatches_enable_and_disable_commands() {
         let mut app = FakeApp::default();
 
-        let enabled = run_cli(&mut app, &args(&["handshake-client", "enable"])).unwrap();
-        let disabled = run_cli(&mut app, &args(&["handshake-client", "disable"])).unwrap();
+        let enabled = run_cli(&mut app, &args(&["git-hs", "enable"])).unwrap();
+        let disabled = run_cli(&mut app, &args(&["git-hs", "disable"])).unwrap();
 
         assert_eq!(app.calls, vec!["enable", "disable"]);
         assert!(enabled.contains("通过 handshake"));
@@ -405,7 +405,7 @@ mod cli_tests {
     #[test]
     fn parses_setup_command_with_defaults() {
         let command = parse_command_with_defaults(
-            &args(&["handshake-client", "setup", "--token", "invite-token"]),
+            &args(&["git-hs", "setup", "--token", "invite-token"]),
             &CliDefaults {
                 home_dir: std::path::PathBuf::from("/home/alice"),
                 server_url: "http://server.test".to_string(),
@@ -436,7 +436,7 @@ mod cli_tests {
     #[test]
     fn rejects_setup_without_token() {
         let error = parse_command_with_defaults(
-            &args(&["handshake-client", "setup"]),
+            &args(&["git-hs", "setup"]),
             &CliDefaults {
                 home_dir: std::path::PathBuf::from("/home/alice"),
                 server_url: "http://server.test".to_string(),
@@ -453,7 +453,7 @@ mod cli_tests {
 
         let output = run_cli_with_defaults(
             &mut app,
-            &args(&["handshake-client", "setup", "--token", "invite-token"]),
+            &args(&["git-hs", "setup", "--token", "invite-token"]),
             &CliDefaults {
                 home_dir: std::path::PathBuf::from("/home/alice"),
                 server_url: "http://server.test".to_string(),

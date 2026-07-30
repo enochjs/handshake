@@ -2,6 +2,8 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+const HANDSHAKE_JUMP_HOST_ALIAS: &str = "handshake-client-jump";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SshConfigOptions {
     pub handshake_host: String,
@@ -23,11 +25,13 @@ impl Default for SshConfigOptions {
 
 pub fn render_managed_config(options: &SshConfigOptions) -> String {
     format!(
-        "Host handshake\n    HostName {}\n    User {}\n    IdentityFile {}\n    IdentitiesOnly yes\n\nHost gitlab-via-handshake\n    HostName 127.0.0.1\n    Port {}\n    User git\n    ProxyJump handshake\n",
+        "Host {}\n    HostName {}\n    User {}\n    IdentityFile {}\n    IdentitiesOnly yes\n\nHost gitlab-via-handshake\n    HostName 127.0.0.1\n    Port {}\n    User git\n    ProxyJump {}\n",
+        HANDSHAKE_JUMP_HOST_ALIAS,
         options.handshake_host,
         options.handshake_user,
         options.identity_file,
-        options.gitlab_local_port
+        options.gitlab_local_port,
+        HANDSHAKE_JUMP_HOST_ALIAS
     )
 }
 
@@ -54,12 +58,33 @@ pub fn ensure_include(config_path: &Path, include_path: &Path) -> io::Result<()>
         return Ok(());
     }
 
+    if let Some(offset) = first_host_or_match_offset(&config) {
+        let mut output = String::with_capacity(config.len() + include_line.len() + 1);
+        output.push_str(&config[..offset]);
+        output.push_str(&include_line);
+        output.push('\n');
+        output.push_str(&config[offset..]);
+        return fs::write(config_path, output);
+    }
+
     if !config.is_empty() && !config.ends_with('\n') {
         config.push('\n');
     }
     config.push_str(&include_line);
     config.push('\n');
     fs::write(config_path, config)
+}
+
+fn first_host_or_match_offset(config: &str) -> Option<usize> {
+    let mut offset = 0;
+    for line in config.split_inclusive('\n') {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("Host ") || trimmed.starts_with("Match ") {
+            return Some(offset);
+        }
+        offset += line.len();
+    }
+    None
 }
 
 #[cfg(test)]
@@ -85,13 +110,14 @@ mod tests {
             gitlab_local_port: 12222,
         });
 
-        assert!(output.contains("Host handshake"));
+        assert!(output.contains("Host handshake-client-jump"));
         assert!(output.contains("    HostName 106.14.219.191"));
         assert!(output.contains("    User gitproxy"));
         assert!(output.contains("    IdentityFile ~/.ssh/id_ed25519"));
         assert!(output.contains("Host gitlab-via-handshake"));
         assert!(output.contains("    Port 12222"));
-        assert!(output.contains("    ProxyJump handshake"));
+        assert!(output.contains("    ProxyJump handshake-client-jump"));
+        assert!(!output.contains("Host handshake\n"));
     }
 
     #[test]
@@ -122,6 +148,28 @@ mod tests {
 
         let output = fs::read_to_string(&config_path).unwrap();
         assert_eq!(output.matches("Include ").count(), 1);
+    }
+
+    #[test]
+    fn inserts_include_before_first_host_block() {
+        let config_path = tmp_path("ssh-config-first-host");
+        let include_path = tmp_path("include-first-host").join("handshake_config");
+        fs::write(
+            &config_path,
+            "# Existing config\nInclude ~/.orbstack/ssh/config\n\nHost handshake\n    User root\n",
+        )
+        .unwrap();
+
+        ensure_include(&config_path, &include_path).unwrap();
+
+        let output = fs::read_to_string(&config_path).unwrap();
+        assert_eq!(
+            output,
+            format!(
+                "# Existing config\nInclude ~/.orbstack/ssh/config\n\nInclude {}\nHost handshake\n    User root\n",
+                include_path.display()
+            )
+        );
     }
 
     #[test]

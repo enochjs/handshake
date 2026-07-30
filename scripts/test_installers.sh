@@ -34,14 +34,19 @@ assert_executable gitlab/install.sh
 assert_executable gitlab/status.sh
 assert_executable handshake-server/install.sh
 assert_executable handshake-server/status.sh
+assert_executable handshake-server/create-token.sh
 assert_executable handshake-source/install.sh
 assert_executable handshake-source/status.sh
 assert_executable handshake-source/tunnel.sh
 assert_executable handshake-client/install.sh
 assert_executable scripts/destroy.sh
 
+assert_contains handshake-client/Cargo.toml "[[bin]]"
+assert_contains handshake-client/Cargo.toml "name = \"git-hs\""
+assert_contains handshake-client/env.example "HANDSHAKE_KEY_SERVER_TUNNEL=1"
 assert_contains handshake-server/install.sh "useradd --create-home"
 assert_contains handshake-server/install.sh "HANDSHAKE_JUMP_USER"
+assert_contains handshake-server/README.md "./create-token.sh"
 assert_contains handshake-server/env.example "HANDSHAKE_JUMP_USER=gitproxy"
 assert_contains handshake-server/env.example "HANDSHAKE_SOURCE_PUBLIC_KEY="
 assert_contains handshake-server/env.example "HANDSHAKE_SOURCE_PUBLIC_KEYS_FILE="
@@ -53,6 +58,10 @@ server_dry_run="$(DRY_RUN=1 bash handshake-server/install.sh)"
 [[ "$server_dry_run" == *"useradd --create-home --shell /bin/bash gitproxy"* ]] || fail "server dry-run did not create gitproxy"
 [[ "$server_dry_run" == *"systemctl enable --now handshake-add-key.service"* ]] || fail "server dry-run did not enable add-key service"
 [[ "$server_dry_run" == *"Source tunnel key: not configured"* ]] || fail "server dry-run missing source key guidance"
+
+server_token_dry_run="$(DRY_RUN=1 HANDSHAKE_NEW_TOKEN=test-token bash handshake-server/create-token.sh)"
+[[ "$server_token_dry_run" == *"sudo tee -a"* && "$server_token_dry_run" == *"/etc/handshake-client/tokens"* ]] || fail "create-token dry-run missing token file append"
+[[ "$server_token_dry_run" == *"test-token"* ]] || fail "create-token dry-run missing generated token output"
 
 server_source_key_dry_run="$(DRY_RUN=1 HANDSHAKE_SOURCE_PUBLIC_KEY='ssh-ed25519 AAAAsource source-host' bash handshake-server/install.sh)"
 [[ "$server_source_key_dry_run" == *"permitlisten=\"127.0.0.1:12222\""* ]] || fail "server source key dry-run missing SSH permitlisten"
@@ -72,9 +81,16 @@ source_dry_run="$(DRY_RUN=1 bash handshake-source/tunnel.sh tunnel)"
 [[ "$source_dry_run" == *"-R 127.0.0.1:12222:127.0.0.1:2222"* ]] || fail "source tunnel dry-run missing SSH reverse forward"
 [[ "$source_dry_run" == *"-R 127.0.0.1:18080:127.0.0.1:8929"* ]] || fail "source tunnel dry-run missing HTTP reverse forward"
 
-client_dry_run="$(DRY_RUN=1 HANDSHAKE_INVITE_TOKEN=test-token bash handshake-client/install.sh)"
+client_dry_run="$(DRY_RUN=1 HANDSHAKE_INVITE_TOKEN=test-token HANDSHAKE_KEY_SERVER_TUNNEL=1 bash handshake-client/install.sh)"
 [[ "$client_dry_run" == *"cargo run -- setup"* ]] || fail "client dry-run missing cargo setup"
+[[ "$client_dry_run" == *"ssh -o ExitOnForwardFailure=yes -N -L 18787:127.0.0.1:8787 handshake"* ]] || fail "client dry-run missing key-server SSH tunnel"
+[[ "$client_dry_run" == *"cargo install --path . --force"* ]] || fail "client dry-run missing global git-hs install"
 [[ "$client_dry_run" == *"--handshake-user gitproxy"* ]] || fail "client dry-run missing gitproxy user"
+[[ "$client_dry_run" == *"git-hs status"* ]] || fail "client dry-run missing global status command"
+[[ "$client_dry_run" == *"ssh -G gitlab-via-handshake"* ]] || fail "client dry-run missing local SSH config verification"
+
+client_local_url_dry_run="$(DRY_RUN=1 HANDSHAKE_INVITE_TOKEN=test-token HANDSHAKE_KEY_SERVER_URL=http://127.0.0.1:18787 bash handshake-client/install.sh)"
+[[ "$client_local_url_dry_run" == *"ssh -o ExitOnForwardFailure=yes -N -L 18787:127.0.0.1:8787 handshake"* ]] || fail "client dry-run should infer SSH tunnel from localhost key-server URL"
 
 set +e
 destroy_without_confirm="$(ROLE=client DRY_RUN=1 bash scripts/destroy.sh 2>&1)"

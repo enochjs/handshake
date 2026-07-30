@@ -53,10 +53,9 @@ Runs on each developer machine. It registers the developer's SSH public key, wri
 Daily commands:
 
 ```bash
-cd handshake-client
-cargo run -- status
-cargo run -- enable
-cargo run -- disable
+git hs status
+git hs enable
+git hs disable
 ```
 
 ## Verify Locally

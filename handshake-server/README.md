@@ -40,10 +40,16 @@ HANDSHAKE_SOURCE_PUBLIC_KEYS_FILE=/etc/handshake-server/source-public-keys
 ## Add Invite Token
 
 ```bash
-echo 'invite-token-1' | sudo tee -a /etc/handshake-client/tokens
+./create-token.sh
 ```
 
-Each successful client setup consumes one token.
+The command prints the new token. Give that value to one developer. Each successful client setup consumes one token.
+
+To create a specific token manually:
+
+```bash
+HANDSHAKE_NEW_TOKEN='invite-token-1' ./create-token.sh
+```
 
 ## Check
 
