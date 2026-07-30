@@ -38,6 +38,7 @@ assert_executable handshake-source/install.sh
 assert_executable handshake-source/status.sh
 assert_executable handshake-source/tunnel.sh
 assert_executable handshake-client/install.sh
+assert_executable scripts/destroy.sh
 
 assert_contains handshake-server/install.sh "useradd --create-home"
 assert_contains handshake-server/install.sh "HANDSHAKE_JUMP_USER"
@@ -56,5 +57,21 @@ source_dry_run="$(DRY_RUN=1 bash handshake-source/tunnel.sh tunnel)"
 client_dry_run="$(DRY_RUN=1 HANDSHAKE_INVITE_TOKEN=test-token bash handshake-client/install.sh)"
 [[ "$client_dry_run" == *"cargo run -- setup"* ]] || fail "client dry-run missing cargo setup"
 [[ "$client_dry_run" == *"--handshake-user gitproxy"* ]] || fail "client dry-run missing gitproxy user"
+
+set +e
+destroy_without_confirm="$(ROLE=client DRY_RUN=1 bash scripts/destroy.sh 2>&1)"
+destroy_without_confirm_status=$?
+set -e
+[[ "$destroy_without_confirm_status" -ne 0 ]] || fail "destroy should require DESTROY_CONFIRM"
+[[ "$destroy_without_confirm" == *"DESTROY_CONFIRM=delete-handshake"* ]] || fail "destroy missing confirmation guidance"
+
+destroy_dry_run="$(ROLE=all DRY_RUN=1 DESTROY_CONFIRM=delete-handshake bash scripts/destroy.sh)"
+[[ "$destroy_dry_run" == *"docker compose -f gitlab/docker-compose.yml down --volumes --remove-orphans"* ]] || fail "destroy dry-run missing GitLab compose removal"
+[[ "$destroy_dry_run" == *"rm -rf gitlab/config gitlab/logs gitlab/data gitlab/backups gitlab/.env"* ]] || fail "destroy dry-run missing GitLab files"
+[[ "$destroy_dry_run" == *"systemctl disable --now handshake-add-key.service"* ]] || fail "destroy dry-run missing server service removal"
+[[ "$destroy_dry_run" == *"userdel -r gitproxy"* ]] || fail "destroy dry-run missing gitproxy deletion"
+[[ "$destroy_dry_run" == *"systemctl disable --now handshake-source-tunnel.service"* ]] || fail "destroy dry-run missing source tunnel service removal"
+[[ "$destroy_dry_run" == *"cargo run -- disable"* ]] || fail "destroy dry-run missing client rewrite disable"
+[[ "$destroy_dry_run" == *"rm -f /root/.ssh/handshake_config"* || "$destroy_dry_run" == *"rm -f $HOME/.ssh/handshake_config"* ]] || fail "destroy dry-run missing client SSH include removal"
 
 echo "PASS: installer smoke tests"

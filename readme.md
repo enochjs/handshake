@@ -66,3 +66,27 @@ scripts/verify.sh
 ```
 
 This checks shell syntax, installer dry-run behavior, the Python key-registration server tests, the source tunnel tests, and Rust client tests.
+
+## Full Delete
+
+Use `scripts/destroy.sh` only when you want to remove a role completely. It deletes services, runtime `.env` files, generated data, and for the Aliyun server role it also removes the `gitproxy` user.
+
+Dry-run first:
+
+```bash
+ROLE=server DRY_RUN=1 DESTROY_CONFIRM=delete-handshake ./scripts/destroy.sh
+```
+
+Run the deletion:
+
+```bash
+ROLE=server DESTROY_CONFIRM=delete-handshake ./scripts/destroy.sh
+```
+
+Supported roles:
+
+- `gitlab`: removes the GitLab container, volumes, `gitlab/config`, `gitlab/logs`, `gitlab/data`, `gitlab/backups`, and `gitlab/.env`
+- `server`: removes `handshake-add-key.service`, `/etc/handshake-server`, `/opt/handshake`, token files, local `.env`, and the `gitproxy` user
+- `source`: removes `handshake-source-tunnel.service` and local `.env`
+- `client`: disables Git rewrite and removes the managed SSH include plus local `.env`
+- `all`: runs `client`, `source`, `server`, then `gitlab`

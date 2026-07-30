@@ -15,7 +15,8 @@ bash -n \
   handshake-source/tunnel.sh \
   handshake-source/install.sh \
   handshake-source/status.sh \
-  handshake-client/install.sh
+  handshake-client/install.sh \
+  scripts/destroy.sh
 
 scripts/test_installers.sh
 python3 handshake-server/server/add_key_server_test.py
