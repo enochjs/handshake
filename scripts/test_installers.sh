@@ -43,12 +43,30 @@ assert_executable scripts/destroy.sh
 assert_contains handshake-server/install.sh "useradd --create-home"
 assert_contains handshake-server/install.sh "HANDSHAKE_JUMP_USER"
 assert_contains handshake-server/env.example "HANDSHAKE_JUMP_USER=gitproxy"
+assert_contains handshake-server/env.example "HANDSHAKE_SOURCE_PUBLIC_KEY="
+assert_contains handshake-server/env.example "HANDSHAKE_SOURCE_PUBLIC_KEYS_FILE="
+assert_contains handshake-server/env.example "permitlisten=\"127.0.0.1:12222\""
 assert_contains handshake-source/tunnel.sh "127.0.0.1:\${HANDSHAKE_REMOTE_GITLAB_SSH_PORT}:127.0.0.1:\${GITLAB_LOCAL_SSH_PORT}"
 assert_contains handshake-client/install.sh "cargo run -- setup"
 
 server_dry_run="$(DRY_RUN=1 bash handshake-server/install.sh)"
 [[ "$server_dry_run" == *"useradd --create-home --shell /bin/bash gitproxy"* ]] || fail "server dry-run did not create gitproxy"
 [[ "$server_dry_run" == *"systemctl enable --now handshake-add-key.service"* ]] || fail "server dry-run did not enable add-key service"
+[[ "$server_dry_run" == *"Source tunnel key: not configured"* ]] || fail "server dry-run missing source key guidance"
+
+server_source_key_dry_run="$(DRY_RUN=1 HANDSHAKE_SOURCE_PUBLIC_KEY='ssh-ed25519 AAAAsource source-host' bash handshake-server/install.sh)"
+[[ "$server_source_key_dry_run" == *"permitlisten=\"127.0.0.1:12222\""* ]] || fail "server source key dry-run missing SSH permitlisten"
+[[ "$server_source_key_dry_run" == *"permitlisten=\"127.0.0.1:18080\""* ]] || fail "server source key dry-run missing HTTP permitlisten"
+[[ "$server_source_key_dry_run" == *"ssh-ed25519 AAAAsource source-tunnel"* ]] || fail "server source key dry-run missing normalized source key"
+
+tmp_source_keys="$(mktemp)"
+trap 'rm -f "$tmp_source_keys"' EXIT
+printf '%s\n%s\n' \
+  'ssh-ed25519 AAAAone source-one' \
+  'ssh-ed25519 AAAAtwo source-two' >"$tmp_source_keys"
+server_multi_key_dry_run="$(DRY_RUN=1 HANDSHAKE_SOURCE_PUBLIC_KEYS_FILE="$tmp_source_keys" bash handshake-server/install.sh)"
+[[ "$server_multi_key_dry_run" == *"ssh-ed25519 AAAAone source-tunnel"* ]] || fail "server multi-key dry-run missing first source key"
+[[ "$server_multi_key_dry_run" == *"ssh-ed25519 AAAAtwo source-tunnel"* ]] || fail "server multi-key dry-run missing second source key"
 
 source_dry_run="$(DRY_RUN=1 bash handshake-source/tunnel.sh tunnel)"
 [[ "$source_dry_run" == *"-R 127.0.0.1:12222:127.0.0.1:2222"* ]] || fail "source tunnel dry-run missing SSH reverse forward"

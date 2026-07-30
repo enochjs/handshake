@@ -20,6 +20,7 @@ vim .env
 
 ```bash
 ./set-user-password.sh <username> [password]
+./set-user-password.sh --create <username> [password] --email <email> --name <name>
 ./backup.sh
 ./restore.sh
 ```

@@ -46,7 +46,7 @@ if [[ -f .env ]]; then
 fi
 
 HANDSHAKE_SERVER_HOST="${HANDSHAKE_SERVER_HOST:-}"
-HANDSHAKE_SERVER_USER="${HANDSHAKE_SERVER_USER:-root}"
+HANDSHAKE_SERVER_USER="${HANDSHAKE_SERVER_USER:-gitproxy}"
 
 [[ -n "$HANDSHAKE_SERVER_HOST" ]] || { echo "HANDSHAKE_SERVER_HOST is required in handshake-source/.env"; exit 1; }
 

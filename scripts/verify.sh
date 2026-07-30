@@ -19,6 +19,7 @@ bash -n \
   scripts/destroy.sh
 
 scripts/test_installers.sh
+scripts/test_gitlab_user_helper.sh
 python3 handshake-server/server/add_key_server_test.py
 handshake-source/tests/tunnel_test.sh
 
