@@ -1,5 +1,15 @@
+.env
+**/.env
+.DS_Store
+**/__pycache__/
+
 gitlab/backups
 gitlab/config
 gitlab/logs
 gitlab/data
+
 handshake-server/data
+handshake-server/tokens
+handshake-server/systemd/generated/
+
+handshake-client/target/

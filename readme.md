@@ -1,21 +1,68 @@
-## 目标实现 handshake 穿透
+# Handshake GitLab SSH Tunnel
 
-### handshake server
+This repository installs a clean three-hop access path for an internal GitLab:
 
-1. 在阿里云上使用docker部署handshake server；
-2. 要求安装docker到启动handshake的完整步骤+检查，如：已经安装docker则不用再安装
-3. 要求提供一个注册 ssh public key的server
+```text
+developer client -> Aliyun handshake server -> internal GitLab source host -> GitLab Docker
+```
 
-### handshake source
+The goal is operational simplicity: clone this repository on the relevant machine, enter that machine's role directory, copy `env.example` to `.env`, adjust values, and run `./install.sh`.
 
-handshake server => source; 如 通过handshake server 访问 gitlab主机
+## Install Order
 
-### handshake client
+| Machine | Directory | Command |
+| --- | --- | --- |
+| Internal GitLab host | `gitlab/` | `cp env.example .env && vim .env && ./install.sh` |
+| Aliyun jump host | `handshake-server/` | `cp env.example .env && vim .env && ./install.sh` |
+| Internal GitLab host | `handshake-source/` | `cp env.example .env && vim .env && ./install.sh` |
+| Developer machine | `handshake-client/` | `cp env.example .env && vim .env && ./install.sh` |
 
-client => handleshake server => handshake source
+## Role Responsibilities
 
-### gitlab
+### `gitlab/`
 
-docker 部署gitlab
+Runs GitLab CE with Docker Compose on the internal GitLab host.
 
-最终要求，可以将代码拉下来，在对应的机器上执行，即可完成对应的安装
+Defaults:
+
+- HTTP: `10.10.0.216:8929`
+- SSH: `10.10.0.216:2222`
+
+### `handshake-server/`
+
+Runs on Aliyun. It creates the `gitproxy` jump user, starts the SSH public-key registration service, and stores invited developer keys in `/home/gitproxy/.ssh/authorized_keys`.
+
+Defaults:
+
+- key registration service: `127.0.0.1:8787`
+- reverse GitLab SSH endpoint on Aliyun loopback: `127.0.0.1:12222`
+
+### `handshake-source/`
+
+Runs on the internal GitLab host. It creates a reverse SSH tunnel to Aliyun:
+
+```text
+local 127.0.0.1:8929 -> Aliyun 127.0.0.1:18080
+local 127.0.0.1:2222 -> Aliyun 127.0.0.1:12222
+```
+
+### `handshake-client/`
+
+Runs on each developer machine. It registers the developer's SSH public key, writes a managed SSH config include, and enables Git URL rewrite so existing GitLab SSH URLs can route through the handshake path.
+
+Daily commands:
+
+```bash
+cd handshake-client
+cargo run -- status
+cargo run -- enable
+cargo run -- disable
+```
+
+## Verify Locally
+
+```bash
+scripts/verify.sh
+```
+
+This checks shell syntax, installer dry-run behavior, the Python key-registration server tests, the source tunnel tests, and Rust client tests.

@@ -7,6 +7,14 @@ set -euo pipefail
 
 CONTAINER="${GITLAB_CONTAINER:-gitlab}"
 GITLAB_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [[ -f "${GITLAB_DIR}/.env" ]]; then
+  set -a
+  source "${GITLAB_DIR}/.env"
+  set +a
+fi
+
+CONTAINER="${GITLAB_CONTAINER:-gitlab}"
 KEEP_DAYS="${BACKUP_KEEP_DAYS:-7}"
 CONFIG_BACKUP_DIR="${GITLAB_DIR}/backups/config"
 LOG_DIR="${GITLAB_DIR}/backups"

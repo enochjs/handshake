@@ -21,6 +21,16 @@ set -euo pipefail
 
 CONTAINER="${GITLAB_CONTAINER:-gitlab}"
 GITLAB_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [[ -f "${GITLAB_DIR}/.env" ]]; then
+  set -a
+  source "${GITLAB_DIR}/.env"
+  set +a
+fi
+
+CONTAINER="${GITLAB_CONTAINER:-gitlab}"
+GITLAB_HOST_IP="${GITLAB_HOST_IP:-10.10.0.216}"
+GITLAB_HTTP_PORT="${GITLAB_HTTP_PORT:-8929}"
 TIMESTAMP="${1:-}"
 
 list_backups() {
@@ -65,5 +75,5 @@ echo "reconfigure + restart..."
 docker exec -t "$CONTAINER" gitlab-ctl reconfigure
 docker exec -t "$CONTAINER" gitlab-ctl restart
 
-echo "恢复完成。请打开 http://10.10.0.216:8929 检查。"
+echo "恢复完成。请打开 http://${GITLAB_HOST_IP}:${GITLAB_HTTP_PORT} 检查。"
 echo "若登录/加密相关异常，请从 backups/config/<时间戳>/ 恢复 gitlab-secrets.json 后重启。"

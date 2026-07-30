@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+bash -n \
+  gitlab/install.sh \
+  gitlab/status.sh \
+  gitlab/backup.sh \
+  gitlab/restore.sh \
+  gitlab/set-user-password.sh \
+  handshake-server/install.sh \
+  handshake-server/status.sh \
+  handshake-source/tunnel.sh \
+  handshake-source/install.sh \
+  handshake-source/status.sh \
+  handshake-client/install.sh
+
+scripts/test_installers.sh
+python3 handshake-server/server/add_key_server_test.py
+handshake-source/tests/tunnel_test.sh
+
+(
+  cd handshake-client
+  cargo test
+)
+
+echo "PASS: repository verification"

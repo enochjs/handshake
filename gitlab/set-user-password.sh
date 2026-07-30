@@ -11,6 +11,17 @@ set -euo pipefail
 USERNAME="${1:-}"
 PASSWORD="${2:-12345678}"
 CONTAINER="${GITLAB_CONTAINER:-gitlab}"
+GITLAB_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [[ -f "${GITLAB_DIR}/.env" ]]; then
+  set -a
+  source "${GITLAB_DIR}/.env"
+  set +a
+fi
+
+CONTAINER="${GITLAB_CONTAINER:-gitlab}"
+GITLAB_HOST_IP="${GITLAB_HOST_IP:-10.10.0.216}"
+GITLAB_HTTP_PORT="${GITLAB_HTTP_PORT:-8929}"
 
 if [[ -z "$USERNAME" ]]; then
   echo "用法: $0 <用户名> [密码]"
@@ -53,7 +64,7 @@ case "$RESULT" in
   OK*)
     echo "成功: $RESULT"
     echo "密码: $PASSWORD"
-    echo "登录: http://10.10.0.216:8929"
+    echo "登录: http://${GITLAB_HOST_IP}:${GITLAB_HTTP_PORT}"
     ;;
   *)
     echo "未知结果: $RESULT"

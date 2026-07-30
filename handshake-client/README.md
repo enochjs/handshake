@@ -2,6 +2,16 @@
 
 Small Rust CLI for switching Git command-line access between direct 216 GitLab SSH and the Aliyun handshake path.
 
+## One-Click Install
+
+```bash
+cp env.example .env
+vim .env
+./install.sh
+```
+
+Set `HANDSHAKE_INVITE_TOKEN` to the one-time token from the Aliyun handshake server operator.
+
 ## First-Time Setup
 
 Ask the Aliyun jump-host operator for an invite token, then run:
