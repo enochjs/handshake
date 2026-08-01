@@ -92,6 +92,42 @@ client_dry_run="$(DRY_RUN=1 HANDSHAKE_INVITE_TOKEN=test-token HANDSHAKE_KEY_SERV
 client_local_url_dry_run="$(DRY_RUN=1 HANDSHAKE_INVITE_TOKEN=test-token HANDSHAKE_KEY_SERVER_URL=http://127.0.0.1:18787 bash handshake-client/install.sh)"
 [[ "$client_local_url_dry_run" == *"ssh -o ExitOnForwardFailure=yes -N -L 18787:127.0.0.1:8787 handshake"* ]] || fail "client dry-run should infer SSH tunnel from localhost key-server URL"
 
+tmp_client_path="$(mktemp -d)"
+trap 'rm -rf "$tmp_source_keys" "$tmp_client_path"' EXIT
+cat >"$tmp_client_path/cargo" <<'FAKE_CARGO'
+#!/usr/bin/env bash
+if [[ "$1 $2 $3" == "run -- setup" ]]; then
+  echo "curl: (22) The requested URL returned error: 403"
+  echo "邀请 token 校验失败（403），请联系 枫荷 处理。"
+  echo "当前: Git 命令会通过 handshake 访问 216 GitLab"
+  exit 0
+fi
+if [[ "$1 $2 $3 $4" == "install --path . --force" ]]; then
+  echo "fake cargo install"
+  exit 0
+fi
+echo "unexpected cargo command: $*" >&2
+exit 1
+FAKE_CARGO
+cat >"$tmp_client_path/git-hs" <<'FAKE_GIT_HS'
+#!/usr/bin/env bash
+echo "fake git-hs $*"
+FAKE_GIT_HS
+chmod +x "$tmp_client_path/cargo" "$tmp_client_path/git-hs"
+set +e
+client_setup_403_output="$(
+  PATH="$tmp_client_path:$PATH" \
+    HANDSHAKE_INVITE_TOKEN=test-token \
+    HANDSHAKE_KEY_SERVER_TUNNEL=0 \
+    bash handshake-client/install.sh 2>&1
+)"
+client_setup_403_status=$?
+set -e
+[[ "$client_setup_403_status" -eq 0 ]] || fail "client 403 path should not abort install"
+[[ "$client_setup_403_output" == *"curl: (22) The requested URL returned error: 403"* ]] || fail "client 403 path should show setup failure"
+[[ "$client_setup_403_output" == *"请联系 枫荷"* ]] || fail "client 403 path should tell users to contact Fenghe"
+[[ "$client_setup_403_output" == *"fake cargo install"* ]] || fail "client 403 path should still refresh git-hs binary"
+
 set +e
 destroy_without_confirm="$(ROLE=client DRY_RUN=1 bash scripts/destroy.sh 2>&1)"
 destroy_without_confirm_status=$?
