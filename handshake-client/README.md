@@ -67,7 +67,23 @@ Host gitlab-via-handshake
 git hs status
 git hs enable
 git hs disable
+git hs web
+git hs refresh
 ```
+
+`git hs web` starts a foreground SSH tunnel for the GitLab web UI:
+
+```bash
+ssh -N -L 8929:127.0.0.1:18080 gitproxy@106.14.219.191
+```
+
+Keep the command running, then open:
+
+```text
+http://127.0.0.1:8929/
+```
+
+`git hs refresh` reinstalls the `git-hs` binary from this source checkout without rerunning setup or registering a key.
 
 ## Add-Key Server
 

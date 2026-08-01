@@ -1,13 +1,17 @@
 use handshake_client::git_config::{GitConfigError, ProcessGitRunner, RunnerGitConfig};
 use handshake_client::key_register::{CurlCommandRunner, CurlKeyRegistrar, RegisterKeyRequest};
 use handshake_client::rewrite_rules::ClientMode;
-use handshake_client::setup::{SetupEnvironment, SetupError, SetupOptions, run_setup};
+use handshake_client::setup::{
+    SetupEnvironment, SetupError, SetupOptions, SetupOutcome, run_setup,
+};
 use handshake_client::ssh_config::{SshConfigOptions, ensure_include, write_managed_config};
 use handshake_client::toggle_service::ToggleService;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 const DEFAULT_KEY_SERVER_URL: &str = "http://106.14.219.191:8787";
 
@@ -18,6 +22,53 @@ enum CliCommand {
     Enable,
     Disable,
     Setup(SetupOptions),
+    Web(WebTunnelOptions),
+    Refresh(RefreshInstallOptions),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WebTunnelOptions {
+    local_port: u16,
+    remote_host: String,
+    remote_port: u16,
+    ssh_target: String,
+}
+
+impl Default for WebTunnelOptions {
+    fn default() -> Self {
+        Self {
+            local_port: 8929,
+            remote_host: "127.0.0.1".to_string(),
+            remote_port: 18080,
+            ssh_target: "gitproxy@106.14.219.191".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RefreshInstallOptions {
+    source_dir: PathBuf,
+}
+
+impl Default for RefreshInstallOptions {
+    fn default() -> Self {
+        Self {
+            source_dir: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+        }
+    }
+}
+
+impl WebTunnelOptions {
+    fn local_url(&self) -> String {
+        format!("http://127.0.0.1:{}/", self.local_port)
+    }
+
+    fn forward_spec(&self) -> String {
+        format!(
+            "{}:{}:{}",
+            self.local_port, self.remote_host, self.remote_port
+        )
+    }
 }
 
 #[cfg(test)]
@@ -53,6 +104,8 @@ fn parse_command_with_defaults(
         Some("enable") => Ok(CliCommand::Enable),
         Some("disable") => Ok(CliCommand::Disable),
         Some("setup") => parse_setup_command(&args[2..], defaults).map(CliCommand::Setup),
+        Some("web") => Ok(CliCommand::Web(WebTunnelOptions::default())),
+        Some("refresh") => Ok(CliCommand::Refresh(RefreshInstallOptions::default())),
         Some(command) => Err(format!("未知命令: {command}")),
     }
 }
@@ -106,7 +159,7 @@ fn parse_setup_command(args: &[String], defaults: &CliDefaults) -> Result<SetupO
 
 fn usage(program: &str) -> String {
     format!(
-        "Usage:\n  {program} setup --token <token>\n  {program} status\n  {program} enable\n  {program} disable\n  {program} help\n"
+        "Usage:\n  {program} setup --token <token>\n  {program} status\n  {program} enable\n  {program} disable\n  {program} web\n  {program} refresh\n  {program} help\n"
     )
 }
 
@@ -156,7 +209,9 @@ trait CliApp {
     fn status(&mut self) -> Result<ClientMode, CliError>;
     fn enable(&mut self) -> Result<ClientMode, CliError>;
     fn disable(&mut self) -> Result<ClientMode, CliError>;
-    fn setup(&mut self, options: SetupOptions) -> Result<ClientMode, CliError>;
+    fn setup(&mut self, options: SetupOptions) -> Result<SetupOutcome, CliError>;
+    fn web_tunnel(&mut self, options: WebTunnelOptions) -> Result<(), CliError>;
+    fn refresh_install(&mut self, options: RefreshInstallOptions) -> Result<(), CliError>;
 }
 
 struct RealCliApp {
@@ -184,11 +239,51 @@ impl CliApp for RealCliApp {
         Ok(self.service.disable()?.mode)
     }
 
-    fn setup(&mut self, options: SetupOptions) -> Result<ClientMode, CliError> {
+    fn setup(&mut self, options: SetupOptions) -> Result<SetupOutcome, CliError> {
         let mut environment = RealSetupEnvironment {
             service: &mut self.service,
         };
-        Ok(run_setup(&mut environment, &options)?.mode)
+        Ok(run_setup(&mut environment, &options)?)
+    }
+
+    fn web_tunnel(&mut self, options: WebTunnelOptions) -> Result<(), CliError> {
+        println!("GitLab 网页隧道已启动: {}", options.local_url());
+        println!("保持此命令运行；按 Ctrl+C 停止隧道。");
+        io::stdout()
+            .flush()
+            .map_err(|error| CliError::new(error.to_string()))?;
+
+        let status = Command::new("ssh")
+            .arg("-o")
+            .arg("ExitOnForwardFailure=yes")
+            .arg("-N")
+            .arg("-L")
+            .arg(options.forward_spec())
+            .arg(&options.ssh_target)
+            .status()
+            .map_err(|error| CliError::new(format!("启动 SSH 隧道失败: {error}")))?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            Err(CliError::new(format!("SSH 隧道退出: {status}")))
+        }
+    }
+
+    fn refresh_install(&mut self, options: RefreshInstallOptions) -> Result<(), CliError> {
+        let status = Command::new("cargo")
+            .arg("install")
+            .arg("--path")
+            .arg(&options.source_dir)
+            .arg("--force")
+            .status()
+            .map_err(|error| CliError::new(format!("刷新 git-hs 失败: {error}")))?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            Err(CliError::new(format!("刷新 git-hs 失败: {status}")))
+        }
     }
 }
 
@@ -210,9 +305,32 @@ fn run_cli_with_defaults(
         Ok(CliCommand::Status) => Ok(format!("{}\n", mode_message(app.status()?))),
         Ok(CliCommand::Enable) => Ok(format!("{}\n", mode_message(app.enable()?))),
         Ok(CliCommand::Disable) => Ok(format!("{}\n", mode_message(app.disable()?))),
-        Ok(CliCommand::Setup(options)) => Ok(format!("{}\n", mode_message(app.setup(options)?))),
+        Ok(CliCommand::Setup(options)) => {
+            let outcome = app.setup(options)?;
+            Ok(format_setup_outcome(&outcome))
+        }
+        Ok(CliCommand::Web(options)) => {
+            let url = options.local_url();
+            app.web_tunnel(options)?;
+            Ok(format!("GitLab 网页隧道已关闭: {url}\n"))
+        }
+        Ok(CliCommand::Refresh(options)) => {
+            app.refresh_install(options)?;
+            Ok("git-hs 已刷新\n".to_string())
+        }
         Err(error) => Err(CliError::new(format!("{error}\n{}", usage(program)))),
     }
+}
+
+fn format_setup_outcome(outcome: &SetupOutcome) -> String {
+    let mut output = String::new();
+    for warning in &outcome.warnings {
+        output.push_str(warning);
+        output.push('\n');
+    }
+    output.push_str(mode_message(outcome.mode));
+    output.push('\n');
+    output
 }
 
 struct RealSetupEnvironment<'a> {
@@ -293,10 +411,7 @@ mod cli_tests {
 
     #[test]
     fn parses_cli_commands() {
-        assert_eq!(
-            parse_command(&args(&["git-hs"])).unwrap(),
-            CliCommand::Help
-        );
+        assert_eq!(parse_command(&args(&["git-hs"])).unwrap(), CliCommand::Help);
         assert_eq!(
             parse_command(&args(&["git-hs", "status"])).unwrap(),
             CliCommand::Status
@@ -308,6 +423,14 @@ mod cli_tests {
         assert_eq!(
             parse_command(&args(&["git-hs", "disable"])).unwrap(),
             CliCommand::Disable
+        );
+        assert_eq!(
+            parse_command(&args(&["git-hs", "web"])).unwrap(),
+            CliCommand::Web(WebTunnelOptions::default())
+        );
+        assert_eq!(
+            parse_command(&args(&["git-hs", "refresh"])).unwrap(),
+            CliCommand::Refresh(RefreshInstallOptions::default())
         );
     }
 
@@ -327,6 +450,8 @@ mod cli_tests {
         assert!(output.contains("git-hs enable"));
         assert!(output.contains("git-hs disable"));
         assert!(output.contains("git-hs setup --token"));
+        assert!(output.contains("git-hs web"));
+        assert!(output.contains("git-hs refresh"));
     }
 
     #[test]
@@ -341,6 +466,9 @@ mod cli_tests {
         calls: Vec<&'static str>,
         mode: ClientMode,
         setup_options: Option<SetupOptions>,
+        setup_warnings: Vec<String>,
+        web_options: Option<WebTunnelOptions>,
+        refresh_options: Option<RefreshInstallOptions>,
     }
 
     impl Default for FakeApp {
@@ -349,6 +477,9 @@ mod cli_tests {
                 calls: Vec::new(),
                 mode: ClientMode::Unconfigured,
                 setup_options: None,
+                setup_warnings: Vec::new(),
+                web_options: None,
+                refresh_options: None,
             }
         }
     }
@@ -369,10 +500,25 @@ mod cli_tests {
             Ok(ClientMode::Direct)
         }
 
-        fn setup(&mut self, options: SetupOptions) -> Result<ClientMode, CliError> {
+        fn setup(&mut self, options: SetupOptions) -> Result<SetupOutcome, CliError> {
             self.calls.push("setup");
             self.setup_options = Some(options);
-            Ok(ClientMode::Handshake)
+            Ok(SetupOutcome {
+                mode: ClientMode::Handshake,
+                warnings: self.setup_warnings.clone(),
+            })
+        }
+
+        fn web_tunnel(&mut self, options: WebTunnelOptions) -> Result<(), CliError> {
+            self.calls.push("web_tunnel");
+            self.web_options = Some(options);
+            Ok(())
+        }
+
+        fn refresh_install(&mut self, options: RefreshInstallOptions) -> Result<(), CliError> {
+            self.calls.push("refresh_install");
+            self.refresh_options = Some(options);
+            Ok(())
         }
     }
 
@@ -382,6 +528,9 @@ mod cli_tests {
             calls: Vec::new(),
             mode: ClientMode::Direct,
             setup_options: None,
+            setup_warnings: Vec::new(),
+            web_options: None,
+            refresh_options: None,
         };
 
         let output = run_cli(&mut app, &args(&["git-hs", "status"])).unwrap();
@@ -464,5 +613,43 @@ mod cli_tests {
         assert_eq!(app.calls, vec!["setup"]);
         assert!(output.contains("通过 handshake"));
         assert_eq!(app.setup_options.unwrap().token, "invite-token");
+    }
+
+    #[test]
+    fn renders_setup_warnings() {
+        let mut app = FakeApp {
+            setup_warnings: vec!["邀请 token 校验失败（403），请联系 枫荷 处理。".to_string()],
+            ..FakeApp::default()
+        };
+
+        let output = run_cli(&mut app, &args(&["git-hs", "setup", "--token", "bad"])).unwrap();
+
+        assert!(output.contains("请联系 枫荷"));
+        assert!(output.contains("通过 handshake"));
+    }
+
+    #[test]
+    fn dispatches_web_command() {
+        let mut app = FakeApp::default();
+
+        let output = run_cli(&mut app, &args(&["git-hs", "web"])).unwrap();
+
+        assert_eq!(app.calls, vec!["web_tunnel"]);
+        assert_eq!(app.web_options.unwrap(), WebTunnelOptions::default());
+        assert!(output.contains("http://127.0.0.1:8929/"));
+    }
+
+    #[test]
+    fn dispatches_refresh_command() {
+        let mut app = FakeApp::default();
+
+        let output = run_cli(&mut app, &args(&["git-hs", "refresh"])).unwrap();
+
+        assert_eq!(app.calls, vec!["refresh_install"]);
+        assert_eq!(
+            app.refresh_options.unwrap(),
+            RefreshInstallOptions::default()
+        );
+        assert!(output.contains("git-hs 已刷新"));
     }
 }

@@ -18,7 +18,10 @@ pub struct SetupOptions {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetupOutcome {
     pub mode: ClientMode,
+    pub warnings: Vec<String>,
 }
+
+pub const REGISTRATION_FORBIDDEN_WARNING: &str = "邀请 token 校验失败（403），请联系 枫荷 处理。";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetupError {
@@ -71,16 +74,24 @@ pub fn run_setup(
     options: &SetupOptions,
 ) -> Result<SetupOutcome, SetupError> {
     let public_key = environment.read_public_key(&options.public_key_path)?;
-    environment.register_key(
+    let mut warnings = Vec::new();
+    match environment.register_key(
         &options.server_url,
         &options.token,
         public_key.trim(),
         &options.key_comment,
-    )?;
+    ) {
+        Ok(()) => {}
+        Err(error) if error.to_string().contains("403") => {
+            warnings.push(REGISTRATION_FORBIDDEN_WARNING.to_string());
+        }
+        Err(error) => return Err(error),
+    }
     environment.write_managed_config(&options.include_path, &options.ssh)?;
     environment.ensure_include(&options.ssh_config_path, &options.include_path)?;
     Ok(SetupOutcome {
         mode: environment.enable_handshake()?,
+        warnings,
     })
 }
 
@@ -94,6 +105,7 @@ mod tests {
     #[derive(Default)]
     struct FakeEnvironment {
         calls: Vec<String>,
+        register_error: Option<SetupError>,
     }
 
     impl SetupEnvironment for FakeEnvironment {
@@ -112,7 +124,10 @@ mod tests {
             self.calls.push(format!(
                 "register:{server_url}:{token}:{public_key}:{comment}"
             ));
-            Ok(())
+            match &self.register_error {
+                Some(error) => Err(error.clone()),
+                None => Ok(()),
+            }
         }
 
         fn write_managed_config(
@@ -169,11 +184,49 @@ mod tests {
         let outcome = run_setup(&mut environment, &options).unwrap();
 
         assert_eq!(outcome.mode, ClientMode::Handshake);
+        assert_eq!(outcome.warnings, Vec::<String>::new());
         assert_eq!(
             environment.calls,
             vec![
                 "read:/tmp/id.pub",
                 "register:http://server.test:token-1:ssh-ed25519 AAAA user@example:teammate@example",
+                "write:/tmp/handshake_config:106.14.219.191:gitproxy",
+                "include:/tmp/ssh_config:/tmp/handshake_config",
+                "enable",
+            ]
+        );
+    }
+
+    #[test]
+    fn setup_continues_with_warning_when_registration_returns_403() {
+        let mut environment = FakeEnvironment {
+            calls: Vec::new(),
+            register_error: Some(SetupError::new(
+                "curl: (22) The requested URL returned error: 403",
+            )),
+        };
+        let options = SetupOptions {
+            token: "expired-token".to_string(),
+            server_url: "http://server.test".to_string(),
+            public_key_path: PathBuf::from("/tmp/id.pub"),
+            ssh_config_path: PathBuf::from("/tmp/ssh_config"),
+            include_path: PathBuf::from("/tmp/handshake_config"),
+            key_comment: "teammate@example".to_string(),
+            ssh: SshConfigOptions::default(),
+        };
+
+        let outcome = run_setup(&mut environment, &options).unwrap();
+
+        assert_eq!(outcome.mode, ClientMode::Handshake);
+        assert_eq!(
+            outcome.warnings,
+            vec![REGISTRATION_FORBIDDEN_WARNING.to_string()]
+        );
+        assert_eq!(
+            environment.calls,
+            vec![
+                "read:/tmp/id.pub",
+                "register:http://server.test:expired-token:ssh-ed25519 AAAA user@example:teammate@example",
                 "write:/tmp/handshake_config:106.14.219.191:gitproxy",
                 "include:/tmp/ssh_config:/tmp/handshake_config",
                 "enable",

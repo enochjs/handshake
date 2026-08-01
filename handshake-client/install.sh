@@ -236,7 +236,9 @@ INCLUDE_PATH="$(expand_path "${HANDSHAKE_INCLUDE_PATH:-~/.ssh/handshake_config}"
 
 start_key_server_tunnel
 
-run cargo run -- setup \
+SETUP_SUCCEEDED=1
+setup_output_file="$(mktemp)"
+if run cargo run -- setup \
   --token "$HANDSHAKE_INVITE_TOKEN" \
   --server-url "${HANDSHAKE_KEY_SERVER_URL:-http://106.14.219.191:8787}" \
   --key "$PUBLIC_KEY_PATH" \
@@ -245,10 +247,30 @@ run cargo run -- setup \
   --handshake-host "${HANDSHAKE_HOST:-106.14.219.191}" \
   --handshake-user "${HANDSHAKE_USER:-gitproxy}" \
   --identity-file "${HANDSHAKE_IDENTITY_FILE:-~/.ssh/id_ed25519}" \
-  --gitlab-local-port "${HANDSHAKE_GITLAB_REMOTE_SSH_PORT:-12222}"
+  --gitlab-local-port "${HANDSHAKE_GITLAB_REMOTE_SSH_PORT:-12222}" >"$setup_output_file" 2>&1; then
+  cat "$setup_output_file"
+  if grep -Fq "请联系 枫荷" "$setup_output_file"; then
+    SETUP_SUCCEEDED=0
+    echo "检测到 key 注册需要人工处理；本次跳过 SSH 配置连通性验证。" >&2
+  fi
+else
+  setup_status=$?
+  cat "$setup_output_file" >&2
+  if grep -Fq "403" "$setup_output_file"; then
+    SETUP_SUCCEEDED=0
+    echo "邀请 token 校验失败（403），请联系 枫荷 处理。" >&2
+    echo "将继续刷新 git-hs 命令；本次不会重新注册 key 或验证 SSH 配置。" >&2
+  else
+    rm -f "$setup_output_file"
+    exit "$setup_status"
+  fi
+fi
+rm -f "$setup_output_file"
 
 run cargo install --path . --force
 verify_git_hs_on_path
 run git-hs status
-verify_ssh_config
-run ssh -T gitlab-via-handshake
+if [[ "$SETUP_SUCCEEDED" == "1" ]]; then
+  verify_ssh_config
+  run ssh -T gitlab-via-handshake
+fi
