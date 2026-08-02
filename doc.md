@@ -198,6 +198,7 @@ FRP_REMOVE_CONFIG=1 ./uninstall.sh
 ```text
 Web: http://gitlab.internal:8929
 SSH: ssh://git@gitlab.internal:2222/<group>/<repo>.git
+Machine SSH: ssh linkmore@gitlab.internal -p 10022
 ```
 
 客户端安装器会做三件事：
@@ -205,6 +206,8 @@ SSH: ssh://git@gitlab.internal:2222/<group>/<repo>.git
 1. 渲染 `frpc-client.toml`，绑定 `127.0.0.1:8929` 和 `127.0.0.1:2222`。
 2. 写入 hosts：`127.0.0.1 gitlab.internal`。
 3. 写入 Git rewrite：把 `ssh://git@10.10.0.216:2222/` 改写到 `ssh://git@gitlab.internal:2222/`。
+
+机器 SSH 和 GitLab SSH 分开端口：`2222` 保留给 GitLab Docker SSH，`10022` 转发到宿主机 SSH `127.0.0.1:22`，用于 `linkmore` 这类系统账号登录。
 
 已有 `handshake-client` 的开发者机器应优先运行仓库根目录下的迁移脚本：
 

@@ -31,3 +31,17 @@ type = "stcp"
 secretKey = "${FRP_SECRET_KEY}"
 localIP = "${GITLAB_LOCAL_HOST}"
 localPort = ${GITLAB_SSH_PORT}
+
+[[proxies]]
+name = "machine-ssh-xtcp"
+type = "xtcp"
+secretKey = "${FRP_SECRET_KEY}"
+localIP = "${MACHINE_SSH_HOST}"
+localPort = ${MACHINE_SSH_PORT}
+
+[[proxies]]
+name = "machine-ssh-stcp"
+type = "stcp"
+secretKey = "${FRP_SECRET_KEY}"
+localIP = "${MACHINE_SSH_HOST}"
+localPort = ${MACHINE_SSH_PORT}

@@ -25,6 +25,8 @@ FRP_SECRET_KEY="${FRP_SECRET_KEY:-}"
 GITLAB_LOCAL_HOST="${GITLAB_LOCAL_HOST:-127.0.0.1}"
 GITLAB_WEB_PORT="${GITLAB_WEB_PORT:-8929}"
 GITLAB_SSH_PORT="${GITLAB_SSH_PORT:-2222}"
+MACHINE_SSH_HOST="${MACHINE_SSH_HOST:-127.0.0.1}"
+MACHINE_SSH_PORT="${MACHINE_SSH_PORT:-22}"
 FRP_CONFIG_PATH="${FRP_CONFIG_PATH:-./generated/frpc-source.toml}"
 
 [[ -n "$FRP_SERVER_ADDR" ]] || { echo "FRP_SERVER_ADDR is required"; exit 1; }
@@ -59,6 +61,8 @@ render_config() {
     -e "s|\${GITLAB_LOCAL_HOST}|${GITLAB_LOCAL_HOST}|g" \
     -e "s|\${GITLAB_WEB_PORT}|${GITLAB_WEB_PORT}|g" \
     -e "s|\${GITLAB_SSH_PORT}|${GITLAB_SSH_PORT}|g" \
+    -e "s|\${MACHINE_SSH_HOST}|${MACHINE_SSH_HOST}|g" \
+    -e "s|\${MACHINE_SSH_PORT}|${MACHINE_SSH_PORT}|g" \
     frpc.toml.template
 }
 
@@ -82,3 +86,4 @@ echo "frp source config: ${FRP_CONFIG_PATH}"
 echo "frp source image: ${FRP_IMAGE}"
 echo "GitLab Web: ${GITLAB_LOCAL_HOST}:${GITLAB_WEB_PORT}"
 echo "GitLab SSH: ${GITLAB_LOCAL_HOST}:${GITLAB_SSH_PORT}"
+echo "Machine SSH: ${MACHINE_SSH_HOST}:${MACHINE_SSH_PORT}"

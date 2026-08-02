@@ -39,3 +39,21 @@ bindPort = ${GITLAB_SSH_BIND_PORT}
 keepTunnelOpen = ${FRP_KEEP_TUNNEL_OPEN}
 fallbackTo = "gitlab-ssh-stcp-visitor"
 fallbackTimeoutMs = ${FRP_FALLBACK_TIMEOUT_MS}
+
+[[visitors]]
+name = "machine-ssh-stcp-visitor"
+type = "stcp"
+serverName = "machine-ssh-stcp"
+secretKey = "${FRP_SECRET_KEY}"
+bindPort = -1
+
+[[visitors]]
+name = "machine-ssh-xtcp-visitor"
+type = "xtcp"
+serverName = "machine-ssh-xtcp"
+secretKey = "${FRP_SECRET_KEY}"
+bindAddr = "${MACHINE_SSH_BIND_ADDR}"
+bindPort = ${MACHINE_SSH_BIND_PORT}
+keepTunnelOpen = ${FRP_KEEP_TUNNEL_OPEN}
+fallbackTo = "machine-ssh-stcp-visitor"
+fallbackTimeoutMs = ${FRP_FALLBACK_TIMEOUT_MS}

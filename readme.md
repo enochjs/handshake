@@ -37,6 +37,7 @@ Developer access after `frp-client/` setup:
 ```text
 http://gitlab.internal:8929
 ssh://git@gitlab.internal:2222/<group>/<repo>.git
+ssh linkmore@gitlab.internal -p 10022
 ```
 
 To migrate an existing developer machine from `handshake-client` to `frp-client`, configure `frp-client/.env` first, then run:
@@ -112,6 +113,12 @@ The role is Docker Compose based and uses host networking so containerized `frpc
 ### `frp-client/`
 
 Runs `frpc` visitors on each developer machine. It binds Web and SSH on loopback, adds `127.0.0.1 gitlab.internal` to hosts, and configures Git URL rewrite from the direct internal GitLab SSH prefix to `ssh://git@gitlab.internal:2222/`.
+
+It also binds machine SSH on `127.0.0.1:10022`, so a developer can connect to the host account with:
+
+```bash
+ssh linkmore@gitlab.internal -p 10022
+```
 
 Existing Handshake clients should use `scripts/migrate-client-to-frp.sh` instead of running this role directly.
 
