@@ -17,8 +17,10 @@ bash -n \
   handshake-source/status.sh \
   handshake-client/install.sh \
   frp-server/install.sh \
+  frp-server/uninstall.sh \
   frp-server/status.sh \
   frp-source/install.sh \
+  frp-source/uninstall.sh \
   frp-source/status.sh \
   frp-client/install.sh \
   frp-client/status.sh \

@@ -1,0 +1,9 @@
+services:
+  frpc-source:
+    image: ${FRP_IMAGE:-fatedier/frpc:v0.68.0}
+    container_name: ${FRP_CONTAINER_NAME:-frpc-source}
+    restart: unless-stopped
+    network_mode: host
+    command: ["-c", "/etc/frp/frpc.toml"]
+    volumes:
+      - ${FRP_CONFIG_PATH:-./generated/frpc-source.toml}:/etc/frp/frpc.toml:ro

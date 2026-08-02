@@ -93,9 +93,13 @@ git hs disable
 
 Runs `frps` on Aliyun. It only provides frp control, NAT coordination, and STCP fallback; it does not publish GitLab Web or SSH as public ports.
 
+The role is Docker Compose based. `install.sh` renders `generated/frps.toml` and runs `docker compose up -d`; `uninstall.sh` runs `docker compose down --remove-orphans`.
+
 ### `frp-source/`
 
 Runs `frpc` on the internal GitLab host. It registers XTCP and STCP proxies for local GitLab Web `127.0.0.1:8929` and SSH `127.0.0.1:2222`.
+
+The role is Docker Compose based and uses host networking so containerized `frpc` can reach the GitLab service on the host loopback address. `install.sh` renders `generated/frpc-source.toml` and runs `docker compose up -d`; `uninstall.sh` runs `docker compose down --remove-orphans`.
 
 ### `frp-client/`
 
@@ -110,6 +114,20 @@ scripts/verify.sh
 This checks shell syntax, installer dry-run behavior, frp role smoke tests, the Python key-registration server tests, the source tunnel tests, and Rust client tests.
 
 ## Full Delete
+
+For frp roles, stop containers without deleting local secrets:
+
+```bash
+cd frp-server && ./uninstall.sh
+cd frp-source && ./uninstall.sh
+```
+
+To remove generated config and `.env` as well:
+
+```bash
+cd frp-server && FRP_REMOVE_CONFIG=1 ./uninstall.sh
+cd frp-source && FRP_REMOVE_CONFIG=1 ./uninstall.sh
+```
 
 Use `scripts/destroy.sh` only when you want to remove a role completely. It deletes services, runtime `.env` files, generated data, and for the Aliyun server role it also removes the `gitproxy` user.
 

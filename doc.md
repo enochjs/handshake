@@ -139,7 +139,7 @@ read public key
 
 ### 2.5 `frp-server/`: 阿里云 frps 控制端
 
-`frp-server/` 运行在阿里云低配服务器上，负责安装和托管 `frps.service`。
+`frp-server/` 运行在阿里云低配服务器上，使用 Docker Compose 托管 `frps` 容器。
 
 它只承担三类职责：
 
@@ -151,14 +151,18 @@ read public key
 
 主要文件：
 
-- `frp-server/env.example`: frps 端口、认证 token、配置路径和版本。
+- `frp-server/env.example`: frps 镜像、端口、认证 token、配置路径和版本。
+- `frp-server/docker-compose.yml`: 使用 `fatedier/frps` 镜像运行 `frps`，并配置 `restart: unless-stopped`。
 - `frp-server/frps.toml.template`: frps TOML 模板。
-- `frp-server/install.sh`: 安装 frps、渲染配置并注册 systemd。
-- `frp-server/status.sh`: 查看 frps 状态和监听端口。
+- `frp-server/install.sh`: 渲染配置并执行 `docker compose up -d`。
+- `frp-server/status.sh`: 查看容器状态、日志和监听端口。
+- `frp-server/uninstall.sh`: 执行 `docker compose down --remove-orphans`；设置 `FRP_REMOVE_CONFIG=1` 时同时删除生成配置和 `.env`。
 
 ### 2.6 `frp-source/`: 内网 GitLab frpc 源端
 
-`frp-source/` 运行在内网 GitLab 宿主机上，主动连接阿里云 `frps`，并把本机 GitLab Web/SSH 作为私有 proxy 注册出去。
+`frp-source/` 运行在内网 GitLab 宿主机上，使用 Docker Compose 托管 `frpc` 容器。它主动连接阿里云 `frps`，并把本机 GitLab Web/SSH 作为私有 proxy 注册出去。
+
+`frp-source/docker-compose.yml` 使用 `network_mode: host`，这样容器里的 `frpc` 可以直接访问宿主机上的 `127.0.0.1:8929` 和 `127.0.0.1:2222`。这会减少 Docker 网络映射带来的额外复杂度，也避免把 GitLab 端口发布到公网。
 
 默认 proxy：
 
@@ -170,6 +174,20 @@ gitlab-ssh-stcp -> 127.0.0.1:2222
 ```
 
 XTCP 是首选路径，STCP 是兜底路径。两者都使用 `secretKey`，只有拿到同一组 `FRP_AUTH_TOKEN` 和 `FRP_SECRET_KEY` 的开发者 visitor 才能接入。
+
+卸载源端通道：
+
+```bash
+cd frp-source
+./uninstall.sh
+```
+
+如果需要连本地生成配置和 `.env` 一起删除：
+
+```bash
+cd frp-source
+FRP_REMOVE_CONFIG=1 ./uninstall.sh
+```
 
 ### 2.7 `frp-client/`: 开发者 frpc visitor
 

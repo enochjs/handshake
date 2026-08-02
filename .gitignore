@@ -13,3 +13,6 @@ handshake-server/tokens
 handshake-server/systemd/generated/
 
 handshake-client/target/
+
+frp-server/generated/
+frp-source/generated/

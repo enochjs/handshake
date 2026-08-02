@@ -30,20 +30,28 @@ assert_not_contains_text() {
 }
 
 assert_file frp-server/env.example
+assert_file frp-server/docker-compose.yml
 assert_file frp-server/frps.toml.template
 assert_executable frp-server/install.sh
+assert_executable frp-server/uninstall.sh
 assert_executable frp-server/status.sh
 
-server_dry_run="$(DRY_RUN=1 FRP_AUTH_TOKEN=test-token FRP_SKIP_BINARY_INSTALL=1 bash frp-server/install.sh)"
+server_dry_run="$(DRY_RUN=1 FRP_AUTH_TOKEN=test-token bash frp-server/install.sh)"
 assert_contains_text "$server_dry_run" "frps.toml"
+assert_contains_text "$server_dry_run" "fatedier/frps:v0.68.0"
 assert_contains_text "$server_dry_run" "bindPort = 7000"
 assert_contains_text "$server_dry_run" "auth.method = \"token\""
-assert_contains_text "$server_dry_run" "systemctl enable --now frps.service"
+assert_contains_text "$server_dry_run" "docker compose up -d"
 assert_not_contains_text "$server_dry_run" "gitlab.internal"
 
+server_uninstall_dry_run="$(DRY_RUN=1 bash frp-server/uninstall.sh)"
+assert_contains_text "$server_uninstall_dry_run" "docker compose down --remove-orphans"
+
 assert_file frp-source/env.example
+assert_file frp-source/docker-compose.yml
 assert_file frp-source/frpc.toml.template
 assert_executable frp-source/install.sh
+assert_executable frp-source/uninstall.sh
 assert_executable frp-source/status.sh
 
 source_dry_run="$(
@@ -51,16 +59,19 @@ source_dry_run="$(
   FRP_SERVER_ADDR=frps.example.com \
   FRP_AUTH_TOKEN=test-token \
   FRP_SECRET_KEY=test-secret \
-  FRP_SKIP_BINARY_INSTALL=1 \
   bash frp-source/install.sh
 )"
 assert_contains_text "$source_dry_run" "serverAddr = \"frps.example.com\""
+assert_contains_text "$source_dry_run" "fatedier/frpc:v0.68.0"
 assert_contains_text "$source_dry_run" "name = \"gitlab-web-xtcp\""
 assert_contains_text "$source_dry_run" "type = \"xtcp\""
 assert_contains_text "$source_dry_run" "name = \"gitlab-web-stcp\""
 assert_contains_text "$source_dry_run" "localPort = 8929"
 assert_contains_text "$source_dry_run" "localPort = 2222"
-assert_contains_text "$source_dry_run" "systemctl enable --now frp-source.service"
+assert_contains_text "$source_dry_run" "docker compose up -d"
+
+source_uninstall_dry_run="$(DRY_RUN=1 bash frp-source/uninstall.sh)"
+assert_contains_text "$source_uninstall_dry_run" "docker compose down --remove-orphans"
 
 assert_file frp-client/env.example
 assert_file frp-client/frpc.toml.template
