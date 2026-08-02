@@ -27,6 +27,27 @@ developer client 127.0.0.1:8929
   -> GitLab Docker HTTP service
 ```
 
+推荐迁移后的 frp 链路如下：
+
+```text
+developer browser/git
+  -> gitlab.internal:8929 / gitlab.internal:2222
+  -> developer frpc visitor on 127.0.0.1
+  -> XTCP direct path to internal GitLab host when NAT traversal succeeds
+  -> STCP fallback through Aliyun frps when XTCP fails
+  -> internal GitLab host 127.0.0.1:8929 / 127.0.0.1:2222
+```
+
+这个 frp 链路的目标是降低低配公网服务器压力。XTCP 成功时，Git clone/pull/push 和 Web 请求的业务流量不经过阿里云 `frps`，`frps` 只承担注册、心跳、NAT 协调等控制面工作；XTCP 失败时，STCP fallback 会让业务流量临时经过 `frps`，牺牲一部分服务器带宽换取可用性。
+
+`gitlab.internal` 不依赖公司 DNS。开发者客户端安装时把下面这一行写入本机 hosts：
+
+```text
+127.0.0.1 gitlab.internal
+```
+
+公网侧不发布 GitLab Web 或 GitLab SSH 地址。阿里云只开放 frp 控制和传输所需端口，GitLab 真实端口仍留在内网宿主机和开发者本机 loopback 上。
+
 ## 2. 四角色架构
 
 ### 2.1 `gitlab/`: 内网 GitLab 服务
@@ -115,6 +136,59 @@ read public key
   -> ensure Include ~/.ssh/handshake_config in ~/.ssh/config
   -> enable Git URL rewrite
 ```
+
+### 2.5 `frp-server/`: 阿里云 frps 控制端
+
+`frp-server/` 运行在阿里云低配服务器上，负责安装和托管 `frps.service`。
+
+它只承担三类职责：
+
+1. 接收 `frp-source/` 和 `frp-client/` 的控制连接。
+2. 协助 XTCP 建立 P2P 连接。
+3. 在 XTCP 失败时作为 STCP fallback 中转。
+
+它不应该配置 GitLab Web/SSH 的 public `tcp`、`http` 或 `https` proxy。这样可以避免公网出现 `gitlab.example.com`、公网 `:8929` 或公网 `:2222` 这类直接入口。
+
+主要文件：
+
+- `frp-server/env.example`: frps 端口、认证 token、配置路径和版本。
+- `frp-server/frps.toml.template`: frps TOML 模板。
+- `frp-server/install.sh`: 安装 frps、渲染配置并注册 systemd。
+- `frp-server/status.sh`: 查看 frps 状态和监听端口。
+
+### 2.6 `frp-source/`: 内网 GitLab frpc 源端
+
+`frp-source/` 运行在内网 GitLab 宿主机上，主动连接阿里云 `frps`，并把本机 GitLab Web/SSH 作为私有 proxy 注册出去。
+
+默认 proxy：
+
+```text
+gitlab-web-xtcp -> 127.0.0.1:8929
+gitlab-web-stcp -> 127.0.0.1:8929
+gitlab-ssh-xtcp -> 127.0.0.1:2222
+gitlab-ssh-stcp -> 127.0.0.1:2222
+```
+
+XTCP 是首选路径，STCP 是兜底路径。两者都使用 `secretKey`，只有拿到同一组 `FRP_AUTH_TOKEN` 和 `FRP_SECRET_KEY` 的开发者 visitor 才能接入。
+
+### 2.7 `frp-client/`: 开发者 frpc visitor
+
+`frp-client/` 运行在每个开发者机器上，负责提供稳定的本地入口。
+
+默认本地入口：
+
+```text
+Web: http://gitlab.internal:8929
+SSH: ssh://git@gitlab.internal:2222/<group>/<repo>.git
+```
+
+客户端安装器会做三件事：
+
+1. 渲染 `frpc-client.toml`，绑定 `127.0.0.1:8929` 和 `127.0.0.1:2222`。
+2. 写入 hosts：`127.0.0.1 gitlab.internal`。
+3. 写入 Git rewrite：把 `ssh://git@10.10.0.216:2222/` 改写到 `ssh://git@gitlab.internal:2222/`。
+
+在 Linux 上，`frp-client/install.sh` 默认安装 `frp-client.service`；在 macOS 上，默认安装 LaunchAgent；其他环境会输出手动启动命令。
 
 ## 3. 核心访问原理
 

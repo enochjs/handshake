@@ -1,0 +1,8 @@
+bindAddr = "${FRP_SERVER_BIND_ADDR}"
+bindPort = ${FRP_BIND_PORT}
+
+auth.method = "token"
+auth.token = "${FRP_AUTH_TOKEN}"
+
+log.level = "${FRP_LOG_LEVEL}"
+log.maxDays = ${FRP_LOG_MAX_DAYS}

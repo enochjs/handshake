@@ -1,0 +1,33 @@
+serverAddr = "${FRP_SERVER_ADDR}"
+serverPort = ${FRP_SERVER_PORT}
+
+auth.method = "token"
+auth.token = "${FRP_AUTH_TOKEN}"
+
+[[proxies]]
+name = "gitlab-web-xtcp"
+type = "xtcp"
+secretKey = "${FRP_SECRET_KEY}"
+localIP = "${GITLAB_LOCAL_HOST}"
+localPort = ${GITLAB_WEB_PORT}
+
+[[proxies]]
+name = "gitlab-web-stcp"
+type = "stcp"
+secretKey = "${FRP_SECRET_KEY}"
+localIP = "${GITLAB_LOCAL_HOST}"
+localPort = ${GITLAB_WEB_PORT}
+
+[[proxies]]
+name = "gitlab-ssh-xtcp"
+type = "xtcp"
+secretKey = "${FRP_SECRET_KEY}"
+localIP = "${GITLAB_LOCAL_HOST}"
+localPort = ${GITLAB_SSH_PORT}
+
+[[proxies]]
+name = "gitlab-ssh-stcp"
+type = "stcp"
+secretKey = "${FRP_SECRET_KEY}"
+localIP = "${GITLAB_LOCAL_HOST}"
+localPort = ${GITLAB_SSH_PORT}

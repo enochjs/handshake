@@ -16,9 +16,16 @@ bash -n \
   handshake-source/install.sh \
   handshake-source/status.sh \
   handshake-client/install.sh \
+  frp-server/install.sh \
+  frp-server/status.sh \
+  frp-source/install.sh \
+  frp-source/status.sh \
+  frp-client/install.sh \
+  frp-client/status.sh \
   scripts/destroy.sh
 
 scripts/test_installers.sh
+scripts/test_frp_installers.sh
 scripts/test_gitlab_user_helper.sh
 python3 handshake-server/server/add_key_server_test.py
 handshake-source/tests/tunnel_test.sh

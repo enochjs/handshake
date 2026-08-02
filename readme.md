@@ -1,14 +1,45 @@
 # Handshake GitLab SSH Tunnel
 
-This repository installs a clean three-hop access path for an internal GitLab:
+This repository installs private access paths for an internal GitLab.
+
+Recommended frp path:
+
+```text
+developer browser/git
+  -> local gitlab.internal:8929 / gitlab.internal:2222
+  -> local frpc visitor
+  -> XTCP direct path to internal GitLab host when possible
+  -> STCP fallback through frps when XTCP fails
+  -> internal GitLab 127.0.0.1:8929 / 127.0.0.1:2222
+```
+
+Legacy Handshake rollback path:
 
 ```text
 developer client -> Aliyun handshake server -> internal GitLab source host -> GitLab Docker
 ```
 
+The frp path is preferred when the public server is low-spec and should avoid carrying GitLab business traffic whenever XTCP hole punching succeeds. Public Aliyun only runs `frps`; it must not expose GitLab Web or SSH as public proxy ports.
+
 The goal is operational simplicity: clone this repository on the relevant machine, enter that machine's role directory, copy `env.example` to `.env`, adjust values, and run `./install.sh`.
 
-## Install Order
+## Recommended FRP Install Order
+
+| Machine | Directory | Command |
+| --- | --- | --- |
+| Internal GitLab host | `gitlab/` | `cp env.example .env && vim .env && ./install.sh` |
+| Aliyun frp host | `frp-server/` | `cp env.example .env && vim .env && ./install.sh` |
+| Internal GitLab host | `frp-source/` | `cp env.example .env && vim .env && ./install.sh` |
+| Developer machine | `frp-client/` | `cp env.example .env && vim .env && ./install.sh` |
+
+Developer access after `frp-client/` setup:
+
+```text
+http://gitlab.internal:8929
+ssh://git@gitlab.internal:2222/<group>/<repo>.git
+```
+
+## Legacy Handshake Install Order
 
 | Machine | Directory | Command |
 | --- | --- | --- |
@@ -58,13 +89,25 @@ git hs enable
 git hs disable
 ```
 
+### `frp-server/`
+
+Runs `frps` on Aliyun. It only provides frp control, NAT coordination, and STCP fallback; it does not publish GitLab Web or SSH as public ports.
+
+### `frp-source/`
+
+Runs `frpc` on the internal GitLab host. It registers XTCP and STCP proxies for local GitLab Web `127.0.0.1:8929` and SSH `127.0.0.1:2222`.
+
+### `frp-client/`
+
+Runs `frpc` visitors on each developer machine. It binds Web and SSH on loopback, adds `127.0.0.1 gitlab.internal` to hosts, and configures Git URL rewrite from the direct internal GitLab SSH prefix to `ssh://git@gitlab.internal:2222/`.
+
 ## Verify Locally
 
 ```bash
 scripts/verify.sh
 ```
 
-This checks shell syntax, installer dry-run behavior, the Python key-registration server tests, the source tunnel tests, and Rust client tests.
+This checks shell syntax, installer dry-run behavior, frp role smoke tests, the Python key-registration server tests, the source tunnel tests, and Rust client tests.
 
 ## Full Delete
 
