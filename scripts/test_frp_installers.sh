@@ -77,6 +77,7 @@ assert_file frp-client/env.example
 assert_file frp-client/frpc.toml.template
 assert_executable frp-client/install.sh
 assert_executable frp-client/status.sh
+assert_executable scripts/migrate-client-to-frp.sh
 
 client_dry_run="$(
   DRY_RUN=1 \
@@ -96,5 +97,24 @@ assert_contains_text "$client_dry_run" "fallbackTo = \"gitlab-ssh-stcp-visitor\"
 assert_contains_text "$client_dry_run" "127.0.0.1 gitlab.internal"
 assert_contains_text "$client_dry_run" "git config --global url.ssh://git@gitlab.internal:2222/.insteadOf ssh://git@10.10.0.216:2222/"
 assert_contains_text "$client_dry_run" "systemctl enable --now frp-client.service"
+
+migrate_client_dry_run="$(
+  DRY_RUN=1 \
+  FRP_SERVER_ADDR=frps.example.com \
+  FRP_AUTH_TOKEN=test-token \
+  FRP_SECRET_KEY=test-secret \
+  FRP_SKIP_BINARY_INSTALL=1 \
+  FRP_SERVICE_MANAGER=systemd \
+  HANDSHAKE_INCLUDE_PATH=/tmp/handshake_config \
+  HANDSHAKE_SSH_CONFIG_PATH=/tmp/ssh_config \
+  bash scripts/migrate-client-to-frp.sh
+)"
+assert_contains_text "$migrate_client_dry_run" "git config --global --unset-all url.ssh://git@gitlab-via-handshake/.insteadOf ssh://git@10.10.0.216:2222/"
+assert_contains_text "$migrate_client_dry_run" "git config --global --unset-all url.ssh://git@10.10.0.216:2222/.insteadOf ssh://git@gitlab-via-handshake/"
+assert_contains_text "$migrate_client_dry_run" "Remove Include /tmp/handshake_config from /tmp/ssh_config"
+assert_contains_text "$migrate_client_dry_run" "rm -f /tmp/handshake_config"
+assert_contains_text "$migrate_client_dry_run" "cargo uninstall handshake-client"
+assert_contains_text "$migrate_client_dry_run" "bash install.sh"
+assert_contains_text "$migrate_client_dry_run" "http://gitlab.internal:8929"
 
 echo "PASS: frp installer smoke tests"

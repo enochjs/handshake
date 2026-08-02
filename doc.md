@@ -206,6 +206,20 @@ SSH: ssh://git@gitlab.internal:2222/<group>/<repo>.git
 2. 写入 hosts：`127.0.0.1 gitlab.internal`。
 3. 写入 Git rewrite：把 `ssh://git@10.10.0.216:2222/` 改写到 `ssh://git@gitlab.internal:2222/`。
 
+已有 `handshake-client` 的开发者机器应优先运行仓库根目录下的迁移脚本：
+
+```bash
+scripts/migrate-client-to-frp.sh
+```
+
+这个脚本会先清理旧客户端状态：
+
+1. 删除 Handshake 相关的两条全局 Git rewrite。
+2. 从 `~/.ssh/config` 删除指向 `handshake_config` 的 Include 行。
+3. 删除 `~/.ssh/handshake_config`。
+4. 如果本机有 Cargo，执行 `cargo uninstall handshake-client` 移除 `git-hs`。
+5. 进入 `frp-client/` 执行 `install.sh`。
+
 在 Linux 上，`frp-client/install.sh` 默认安装 `frp-client.service`；在 macOS 上，默认安装 LaunchAgent；其他环境会输出手动启动命令。
 
 ## 3. 核心访问原理

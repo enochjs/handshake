@@ -1,0 +1,41 @@
+serverAddr = "${FRP_SERVER_ADDR}"
+serverPort = ${FRP_SERVER_PORT}
+
+auth.method = "token"
+auth.token = "${FRP_AUTH_TOKEN}"
+
+[[visitors]]
+name = "gitlab-web-stcp-visitor"
+type = "stcp"
+serverName = "gitlab-web-stcp"
+secretKey = "${FRP_SECRET_KEY}"
+bindPort = -1
+
+[[visitors]]
+name = "gitlab-web-xtcp-visitor"
+type = "xtcp"
+serverName = "gitlab-web-xtcp"
+secretKey = "${FRP_SECRET_KEY}"
+bindAddr = "${GITLAB_WEB_BIND_ADDR}"
+bindPort = ${GITLAB_WEB_BIND_PORT}
+keepTunnelOpen = ${FRP_KEEP_TUNNEL_OPEN}
+fallbackTo = "gitlab-web-stcp-visitor"
+fallbackTimeoutMs = ${FRP_FALLBACK_TIMEOUT_MS}
+
+[[visitors]]
+name = "gitlab-ssh-stcp-visitor"
+type = "stcp"
+serverName = "gitlab-ssh-stcp"
+secretKey = "${FRP_SECRET_KEY}"
+bindPort = -1
+
+[[visitors]]
+name = "gitlab-ssh-xtcp-visitor"
+type = "xtcp"
+serverName = "gitlab-ssh-xtcp"
+secretKey = "${FRP_SECRET_KEY}"
+bindAddr = "${GITLAB_SSH_BIND_ADDR}"
+bindPort = ${GITLAB_SSH_BIND_PORT}
+keepTunnelOpen = ${FRP_KEEP_TUNNEL_OPEN}
+fallbackTo = "gitlab-ssh-stcp-visitor"
+fallbackTimeoutMs = ${FRP_FALLBACK_TIMEOUT_MS}

@@ -24,6 +24,7 @@ bash -n \
   frp-source/status.sh \
   frp-client/install.sh \
   frp-client/status.sh \
+  scripts/migrate-client-to-frp.sh \
   scripts/destroy.sh
 
 scripts/test_installers.sh
