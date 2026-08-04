@@ -104,6 +104,20 @@ assert_contains_text "$client_dry_run" "127.0.0.1 gitlab.internal"
 assert_contains_text "$client_dry_run" "git config --global url.ssh://git@gitlab.internal:2222/.insteadOf ssh://git@10.10.0.216:2222/"
 assert_contains_text "$client_dry_run" "systemctl enable --now frp-client.service"
 
+client_launchd_dry_run="$(
+  DRY_RUN=1 \
+  FRP_SERVER_ADDR=frps.example.com \
+  FRP_AUTH_TOKEN=test-token \
+  FRP_SECRET_KEY=test-secret \
+  FRP_SKIP_BINARY_INSTALL=1 \
+  FRP_SERVICE_MANAGER=launchd \
+  bash frp-client/install.sh
+)"
+assert_contains_text "$client_launchd_dry_run" "sudo chown $(id -un):$(id -gn) /etc/frp/frpc-client.toml"
+assert_contains_text "$client_launchd_dry_run" "sudo chmod 600 /etc/frp/frpc-client.toml"
+assert_contains_text "$client_launchd_dry_run" "sudo chown $(id -un):$(id -gn) $HOME/Library/LaunchAgents/com.handshake.frp-client.plist"
+assert_contains_text "$client_launchd_dry_run" "launchctl load"
+
 migrate_client_dry_run="$(
   DRY_RUN=1 \
   FRP_SERVER_ADDR=frps.example.com \
