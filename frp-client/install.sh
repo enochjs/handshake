@@ -204,6 +204,21 @@ service_manager() {
   esac
 }
 
+install_config_permissions() {
+  local manager="$1"
+
+  case "$manager" in
+    systemd)
+      run sudo chmod 600 "$FRP_CONFIG_PATH"
+      ;;
+    launchd|manual)
+      run sudo chown "$(id -un):$(id -gn)" "$FRP_CONFIG_PATH"
+      run sudo chmod 600 "$FRP_CONFIG_PATH"
+      ;;
+    *) echo "Unknown FRP_SERVICE_MANAGER: ${manager}" >&2; exit 1 ;;
+  esac
+}
+
 install_systemd_service() {
   if [[ "$DRY_RUN" == "1" || "$DRY_RUN" == "true" ]]; then
     print_cmd sudo tee /etc/systemd/system/frp-client.service
@@ -235,8 +250,12 @@ install_launchd_service() {
   run mkdir -p "$(dirname "$plist_path")"
 
   if [[ "$DRY_RUN" == "1" || "$DRY_RUN" == "true" ]]; then
+    print_cmd sudo chown "$(id -un):$(id -gn)" "$plist_path"
     echo "Would render $plist_path"
   else
+    if [[ -e "$plist_path" ]]; then
+      sudo chown "$(id -un):$(id -gn)" "$plist_path"
+    fi
     cat >"$plist_path" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -274,19 +293,21 @@ install_manual_service() {
 
 install_frpc_binary
 
+service_mgr="$(service_manager)"
+
 run sudo install -d -m 755 "$(dirname "$FRP_CONFIG_PATH")"
 if [[ "$DRY_RUN" == "1" || "$DRY_RUN" == "true" ]]; then
   echo "Would render $FRP_CONFIG_PATH"
   render_config
 else
   render_config | sudo tee "$FRP_CONFIG_PATH" >/dev/null
-  sudo chmod 600 "$FRP_CONFIG_PATH"
 fi
+install_config_permissions "$service_mgr"
 
 install_hosts_entry
 run git config --global "url.${FRP_GITLAB_SSH_PREFIX}.insteadOf" "$DIRECT_GITLAB_SSH_PREFIX"
 
-case "$(service_manager)" in
+case "$service_mgr" in
   systemd) install_systemd_service ;;
   launchd) install_launchd_service ;;
   manual) install_manual_service ;;
